@@ -50,7 +50,7 @@ public class DiscoveryService {
         log.info("Starting parallel fetch for all records...");
 
         Set<String> azureOrganizations = Set.of(props.getAzureOrganizations());
-        log.info("Organizations found: {}", azureOrganizations);
+        log.info("{} organizations found", azureOrganizations.size());
 
         ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 10));
         ConcurrentLinkedQueue<QualifiedProjects.Match> allQualifiedProjects = new ConcurrentLinkedQueue<>();
@@ -138,9 +138,9 @@ public class DiscoveryService {
     public ResponseEntity<RedboxResponseContract> findRecordByName(String serviceName) {
         log.info("findRecordByName...");
         Set<String> azureOrganizations = Set.of(props.getAzureOrganizations());
-        log.info("{} organizations found: {}", azureOrganizations.size(), azureOrganizations);
+        log.info("{} organizations found.", azureOrganizations.size());
 
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 10));
+        ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 1));
         ConcurrentLinkedQueue<QualifiedProjects.Match> allMatchedProjects = new ConcurrentLinkedQueue<>();
 
         List<CompletableFuture<Void>> futures = azureOrganizations.stream()
@@ -166,13 +166,15 @@ public class DiscoveryService {
                         executeSearchByName(repoSearchResponse, serviceName).stream()
                                 .flatMap(this::getCommits) // commits is streamed here
                                 .map(item -> getQualifiedProject(item, "DEV")) // process and transform one-by-one
+                                .filter(Objects::nonNull)
                                 .forEach(allMatchedProjects::add);
 
                         log.info("Projects added for org: {}", orgName);
                     } catch (Exception e) {
                         log.error("Error occurred during org processing", e);
                     }
-                }, executor)).toList();
+                }, executor))
+                .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executor.shutdown();
@@ -206,6 +208,8 @@ public class DiscoveryService {
             if (commitsResponse != null && commitsResponse.getValue() != null && !commitsResponse.getValue().isEmpty()) {
                 commitsResponse.setDocumentationUrl("https://docs.testcloud.com/" + item.getName());
                 item.setCommitsResponse(commitsResponse);
+            } else {
+                log.info("no commits in: {}", item.getProject().getName());
             }
 
             return Stream.of(item);
@@ -223,7 +227,8 @@ public class DiscoveryService {
         return repoSearchResponses.getValue().stream()
                 .filter(item -> {
                     String repoName = item.getName();
-                    if (repoName == null) return false;
+                    if (repoName == null)
+                        return false;
 
                     String normalizedRepo = normalize(repoName);
                     return normalizedRepo.contains(normalizedInput) ||
