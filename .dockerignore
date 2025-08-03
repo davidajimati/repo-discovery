@@ -1,0 +1,66 @@
+# 1. Version control
+.git/
+.gitignore
+
+# 2. IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 3. Java build outputs
+/target/
+*.class
+
+# 4. Build outputs (generic)
+dist/
+build/
+out/
+logs/
+
+# 5. Test and debug artifacts
+test/
+tests/
+debug/
+*.log
+
+# 6. Documentation and markdown
+docs/
+*.md
+HELP.md
+README*
+
+# 7. Temporary and local files
+tmp/
+temp/
+*.tmp
+.local/
+local/
+
+# 8. Environment and secrets
+.env*
+*.env
+*.pem
+*.key
+*.crt
+config.local.*
+*.local.yml
+
+# 9. Project-specific
+.DS_Store
+
+# 10. Docker and compose files (except main Dockerfile)
+Dockerfile*
+docker-compose*
+!Dockerfile
+
+# 11. Miscellaneous
+*.gitattributes
+
+# Exclude Maven wrapper and config from ignore (do NOT ignore these)
+# !.mvnw
+# !mvnw.cmd
+# !.mvn/
+
+# End of .dockerignore

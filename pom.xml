@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.ajimati</groupId>
-	<artifactId>repo-search-service</artifactId>
+	<artifactId>microservice-project-discovery-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>microservice-project-discovery-service</name>
 	<description>This service helps search for microservices information using azure repos</description>

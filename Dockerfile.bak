@@ -1,0 +1,42 @@
+# Multi-stage build for lightweight Spring Boot image
+FROM maven:3.9-eclipse-temurin-17 AS build
+
+# Set working directory
+WORKDIR /app
+
+# Copy pom.xml first to leverage Docker layer caching
+COPY pom.xml .
+
+# Download dependencies (cached layer if pom.xml doesn't change)
+RUN mvn dependency:go-offline -B
+
+# Copy source code
+COPY src ./src
+
+# Build the application
+RUN mvn clean package -DskipTests
+
+# Runtime stage - use minimal JRE image
+FROM eclipse-temurin:17-jre-alpine
+
+# Add a non-root user for security
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy the JAR from build stage
+COPY --from=build /app/target/*.jar app.jar
+
+# Change ownership to non-root user
+RUN chown appuser:appgroup app.jar
+
+# Switch to non-root user
+USER appuser
+
+# Expose port (adjust if your app uses different port)
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
