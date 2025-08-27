@@ -6,7 +6,7 @@ import com.ajimati.MicroServiceDiscoveryService.exception.CustomRuntimeException
 import com.ajimati.MicroServiceDiscoveryService.models.CommitsResponse;
 import com.ajimati.MicroServiceDiscoveryService.models.QualifiedProjects;
 import com.ajimati.MicroServiceDiscoveryService.models.RepoSearchResponse;
-import com.ajimati.MicroServiceDiscoveryService.models.contract.RedboxResponseContract;
+import com.ajimati.MicroServiceDiscoveryService.models.contract.ApiResponseContract;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -34,23 +34,34 @@ public class DiscoveryService {
     private final PropsReader props;
     private final WebClientClass webClient;
 
-    private static QualifiedProjects.Match getQualifiedProjects(String userType, RepoSearchResponse.Values value) {
+    private static QualifiedProjects.Match getQualifiedProjects(String userType, RepoSearchResponse.Values value, String teamName) {
         QualifiedProjects.Match match = new QualifiedProjects.Match();
         match.setProjectName(value.getName());
         match.setDocumentationUrl(value.getCommitsResponse().getDocumentationUrl());
         match.setDeveloperName(value.getCommitsResponse().getValue().get(0).getAuthor().getName());
         match.setDeveloperEmail(value.getCommitsResponse().getValue().get(0).getAuthor().getEmail());
-        if (userType.equalsIgnoreCase("ADMIN"))
-            match.setRepoUrl(value.getWebUrl());
+        match.setDeveloperTeam(teamName);
+//        if (userType.equalsIgnoreCase("ADMIN")) todo: enable this to remove repo url from response
+        match.setRepoUrl(value.getWebUrl());
         return match;
     }
 
+    private void appendToBuffer(StringBuffer buffer, String input) {
+        if (buffer.isEmpty()) {
+            buffer.append(input);
+        } else {
+            buffer.append(", ").append(input);
+        }
+    }
+
     @SneakyThrows
-    public ResponseEntity<RedboxResponseContract> findAllRecords() {
+    public ResponseEntity<ApiResponseContract> findAllRecords() {
+        StringBuffer buffer = new StringBuffer();
+
         log.info("Starting parallel fetch for all records...");
 
         Set<String> azureOrganizations = Set.of(props.getAzureOrganizations());
-        log.info("{} organizations found", azureOrganizations.size());
+        log.info("Organizations found: {}", azureOrganizations);
 
         ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 10));
         ConcurrentLinkedQueue<QualifiedProjects.Match> allQualifiedProjects = new ConcurrentLinkedQueue<>();
@@ -61,6 +72,7 @@ public class DiscoveryService {
                         var creds = getOrgAndPat(orgInfo);
                         String orgName = creds.get("orgName");
                         String personalAccessToken = creds.get("orgPat");
+                        String teamName = creds.get("teamName");
                         String encodedPat = encodePat(personalAccessToken);
 
                         String repoSearchUrl = String.format("https://dev.azure.com/%s/_apis/git/repositories?api-version=7.1", orgName);
@@ -81,23 +93,29 @@ public class DiscoveryService {
 
                                         CommitsResponse commit = webClient.makeHttpCall(encodedCommitUrl, encodedPat, orgName, CommitsResponse.class);
                                         if (commit != null && commit.getValue() != null && !commit.getValue().isEmpty()) {
-                                            commit.setDocumentationUrl("https://docs.testcloud.com/" + repo.getName());
+//                                            commit.setDocumentationUrl("https://docs.testcloud.com/" + repo.getName()); todo: set documentation url when format and domain has been decided what it should be
                                             repo.setCommitsResponse(commit);
                                             repo.setOrgName(orgName);
                                             repo.setOrgPat(personalAccessToken);
                                             return Stream.of(repo);
                                         }
+                                    } catch (CustomRuntimeException e) {
+                                        appendToBuffer(buffer, e.getMessage());
                                     } catch (Exception e) {
                                         log.error("Failed to fetch commit for repo {}: {}", repo.getName(), e.getMessage());
                                     }
                                     return Stream.empty();
                                 })
-                                .map(repo -> getQualifiedProject(repo, "ADMIN"))
+                                .map(repo -> getQualifiedProject(repo, "ADMIN", teamName))
                                 .forEach(allQualifiedProjects::add);
 
                         log.info("Fetched and streamed projects for {}", orgName);
+                    } catch (CustomRuntimeException e) {
+                        log.info(e.getMessage());
+                        appendToBuffer(buffer, e.getMessage());
                     } catch (Exception e) {
                         log.error("Failed to fetch data for org {}: {}", orgInfo, e.getMessage(), e);
+                        appendToBuffer(buffer, e.getMessage());
                     }
                 }, executor))
                 .toList();
@@ -115,7 +133,7 @@ public class DiscoveryService {
         qualifiedProjects.setCount(allQualifiedProjects.size());
 
         log.info("Matched services count: {}", qualifiedProjects.getMatch().size());
-        return new ResponseEntity<>(new RedboxResponseContract(qualifiedProjects), OK);
+        return new ResponseEntity<>(new ApiResponseContract(qualifiedProjects, buffer.toString()), OK);
     }
 
     private String encodePat(String pat) {
@@ -125,8 +143,10 @@ public class DiscoveryService {
     private HashMap<String, String> getOrgAndPat(String orgInfo) {
         HashMap<String, String> orgCredentials = new HashMap<>();
         try {
-            orgCredentials.put("orgName", orgInfo.split(":")[0]);
-            orgCredentials.put("orgPat", orgInfo.split(":")[1]);
+            String[] orgData = orgInfo.split(":");
+            orgCredentials.put("orgName", orgData[0]);
+            orgCredentials.put("orgPat", orgData[1]);
+            orgCredentials.put("teamName", orgData[2]);
         } catch (Exception e) {
             log.info("error parsing organization credentials");
             throw new CustomRuntimeException(INVALID_ORG_CONFIG);
@@ -135,12 +155,12 @@ public class DiscoveryService {
     }
 
     @SneakyThrows
-    public ResponseEntity<RedboxResponseContract> findRecordByName(String serviceName) {
-        log.info("findRecordByName...");
+    public ResponseEntity<ApiResponseContract> findRecordByName(String serviceName) {
+        StringBuffer buffer = new StringBuffer();
         Set<String> azureOrganizations = Set.of(props.getAzureOrganizations());
-        log.info("{} organizations found.", azureOrganizations.size());
+        log.info("{} organizations found: {}", azureOrganizations.size(), azureOrganizations);
 
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 1));
+        ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 10));
         ConcurrentLinkedQueue<QualifiedProjects.Match> allMatchedProjects = new ConcurrentLinkedQueue<>();
 
         List<CompletableFuture<Void>> futures = azureOrganizations.stream()
@@ -149,50 +169,58 @@ public class DiscoveryService {
                         var creds = getOrgAndPat(orgInfo);
                         String orgName = creds.get("orgName");
                         String personalAccessToken = creds.get("orgPat");
+                        String teamName = creds.get("teamName");
                         String encodedPat = encodePat(personalAccessToken);
 
                         String repoSearchUrl = String.format("https://dev.azure.com/%s/_apis/git/repositories?api-version=7.1", orgName);
                         String encodedUrl = new URI(repoSearchUrl.replace(" ", "%20")).toASCIIString();
+                        try {
+                            RepoSearchResponse repoSearchResponse = webClient.makeHttpCall(encodedUrl, encodedPat, orgName, RepoSearchResponse.class);
+                            if (repoSearchResponse == null || repoSearchResponse.getValue() == null) {
+                                log.warn("No repositories for org: {}", orgName);
+                                return;
+                            }
 
-                        RepoSearchResponse repoSearchResponse = webClient.makeHttpCall(encodedUrl, encodedPat, orgName, RepoSearchResponse.class);
-                        if (repoSearchResponse == null || repoSearchResponse.getValue() == null) {
-                            log.warn("No repositories for org: {}", orgName);
-                            return;
+                            repoSearchResponse.setOrgName(orgName);
+                            repoSearchResponse.setOrgPat(personalAccessToken);
+
+                            executeSearchByName(repoSearchResponse, serviceName).stream()
+                                    .flatMap(this::getCommits) // commits is streamed here
+                                    .map(item -> getQualifiedProject(item, "DEV", teamName)) // process and transform one-by-one
+                                    .forEach(allMatchedProjects::add);
+
+                            log.info("Projects added for org: {}", orgName);
+                        } catch (CustomRuntimeException e) {
+                            appendToBuffer(buffer, e.getMessage());
+                        } catch (Exception e) {
+                            log.error("Failed to fetch commit for org {}: {}", orgName, e.getMessage());
                         }
-
-                        repoSearchResponse.setOrgName(orgName);
-                        repoSearchResponse.setOrgPat(personalAccessToken);
-
-                        executeSearchByName(repoSearchResponse, serviceName).stream()
-                                .flatMap(this::getCommits) // commits is streamed here
-                                .map(item -> getQualifiedProject(item, "DEV")) // process and transform one-by-one
-                                .filter(Objects::nonNull)
-                                .forEach(allMatchedProjects::add);
-
-                        log.info("Projects added for org: {}", orgName);
+                    } catch (CustomRuntimeException e) {
+                        log.info(e.getMessage());
+                        appendToBuffer(buffer, e.getMessage());
                     } catch (Exception e) {
                         log.error("Error occurred during org processing", e);
+                        appendToBuffer(buffer, e.getMessage());
                     }
-                }, executor))
-                .toList();
+                }, executor)).toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executor.shutdown();
 
-        log.info("Returning {} matched services\n\n", allMatchedProjects.size());
+        log.info("Returning {} matched service(s)\n", allMatchedProjects.size());
 
         QualifiedProjects qualifiedProjects = new QualifiedProjects();
         qualifiedProjects.setMatch(new ArrayList<>(allMatchedProjects));
         qualifiedProjects.setCount(allMatchedProjects.size());
 
-        return new ResponseEntity<>(new RedboxResponseContract(qualifiedProjects), OK);
+        return new ResponseEntity<>(new ApiResponseContract(qualifiedProjects, buffer.toString()), OK);
     }
 
-    private QualifiedProjects.Match getQualifiedProject(RepoSearchResponse.Values value, String userType) {
+    private QualifiedProjects.Match getQualifiedProject(RepoSearchResponse.Values value, String userType, String teamName) {
         if (value == null || value.getCommitsResponse() == null || value.getCommitsResponse().getValue().isEmpty()) {
             return null;
         }
-        return getQualifiedProjects(userType, value);
+        return getQualifiedProjects(userType, value, teamName);
     }
 
     private Stream<RepoSearchResponse.Values> getCommits(RepoSearchResponse.Values item) {
@@ -206,10 +234,8 @@ public class DiscoveryService {
 
             CommitsResponse commitsResponse = webClient.makeHttpCall(encodedUrl, encodedPat, item.getOrgName(), CommitsResponse.class);
             if (commitsResponse != null && commitsResponse.getValue() != null && !commitsResponse.getValue().isEmpty()) {
-                commitsResponse.setDocumentationUrl("https://docs.testcloud.com/" + item.getName());
+//                commitsResponse.setDocumentationUrl("https://docs.testcloud.com/" + item.getName());
                 item.setCommitsResponse(commitsResponse);
-            } else {
-                log.info("no commits in: {}", item.getProject().getName());
             }
 
             return Stream.of(item);
@@ -227,12 +253,11 @@ public class DiscoveryService {
         return repoSearchResponses.getValue().stream()
                 .filter(item -> {
                     String repoName = item.getName();
-                    if (repoName == null)
-                        return false;
+                    if (repoName == null) return false;
 
-                    String normalizedRepo = normalize(repoName);
-                    return normalizedRepo.contains(normalizedInput) ||
-                            distance.apply(normalizedRepo, normalizedInput) <= maxDistance;
+                    String normalizedRepoName = normalize(repoName);
+                    return normalizedRepoName.contains(normalizedInput) ||
+                            distance.apply(normalizedRepoName, normalizedInput) <= maxDistance;
                 })
                 .peek(item -> {
                     item.setOrgName(repoSearchResponses.getOrgName());

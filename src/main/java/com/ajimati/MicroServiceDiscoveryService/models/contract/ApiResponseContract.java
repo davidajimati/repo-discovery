@@ -9,20 +9,22 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class RedboxResponseContract {
+public class ApiResponseContract {
     private String responseCode;
     private String responseMsg;
+    private String exceptions;
     private Object responseDetails;
 
-    RedboxResponseContract(Responses responseEnum) {
+    ApiResponseContract(Responses responseEnum) {
         responseCode = responseEnum.getResponseCode();
         responseMsg = responseEnum.getResponseMsg();
         responseDetails = new QualifiedProjects();
     }
 
-    public RedboxResponseContract(QualifiedProjects qualifiedProjects) {
+    public ApiResponseContract(QualifiedProjects qualifiedProjects, String warning) {
         responseCode = "00";
         responseMsg = "Match found";
+        exceptions = warning;
         responseDetails = qualifiedProjects;
     }
 }

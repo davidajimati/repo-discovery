@@ -18,8 +18,20 @@ public class CustomRuntimeException extends RuntimeException {
     private HttpStatus httpStatus;
 
     public CustomRuntimeException(Responses responseEnum) {
+        super(responseEnum.getResponseMsg());
         responseCode = responseEnum.getResponseCode();
         responseMsg = responseEnum.getResponseMsg();
         httpStatus = responseEnum.getHttpStatus();
+    }
+
+    public CustomRuntimeException(String code, String msg, HttpStatus status) {
+        super(msg);
+        responseCode = code;
+        responseMsg = msg;
+        httpStatus = status;
+    }
+
+    public CustomRuntimeException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

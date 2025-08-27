@@ -12,9 +12,10 @@ public class QualifiedProjects {
     @Data
     public static class Match {
         private String projectName;
-        private String documentationUrl;
         private String developerName;
         private String developerEmail;
+        private String developerTeam;
         private String repoUrl;
+        private String documentationUrl;
     }
 }
