@@ -9,7 +9,6 @@ import com.ajimati.MicroServiceDiscoveryService.models.RepoSearchResponse;
 import com.ajimati.MicroServiceDiscoveryService.models.contract.ApiResponseContract;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -27,7 +26,6 @@ import java.util.stream.Stream;
 import static com.ajimati.MicroServiceDiscoveryService.enums.Responses.INVALID_ORG_CONFIG;
 import static org.springframework.http.HttpStatus.OK;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DiscoveryService {
@@ -58,10 +56,10 @@ public class DiscoveryService {
     public ResponseEntity<ApiResponseContract> findAllRecords() {
         StringBuffer buffer = new StringBuffer();
 
-        log.info("Starting parallel fetch for all records...");
+        System.out.println("Starting parallel fetch for all records...");
 
         Set<String> azureOrganizations = Set.of(props.getAzureOrganizations());
-        log.info("Organizations found: {}", azureOrganizations);
+        System.out.println("Organizations found: " + azureOrganizations);
 
         ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 10));
         ConcurrentLinkedQueue<QualifiedProjects.Match> allQualifiedProjects = new ConcurrentLinkedQueue<>();
@@ -80,7 +78,7 @@ public class DiscoveryService {
                         RepoSearchResponse repoSearchResponse = webClient.makeHttpCall(encodedUrl, encodedPat, orgName, RepoSearchResponse.class);
 
                         if (repoSearchResponse == null || repoSearchResponse.getValue() == null) {
-                            log.warn("No repositories for org: {}", orgName);
+                            System.out.println("No repositories for org: " + orgName);
                             return;
                         }
 
@@ -102,19 +100,19 @@ public class DiscoveryService {
                                     } catch (CustomRuntimeException e) {
                                         appendToBuffer(buffer, e.getMessage());
                                     } catch (Exception e) {
-                                        log.error("Failed to fetch commit for repo {}: {}", repo.getName(), e.getMessage());
+                                        System.out.println("Failed to fetch commit for repo " + repo.getName() + ": " + e.getMessage());
                                     }
                                     return Stream.empty();
                                 })
                                 .map(repo -> getQualifiedProject(repo, "ADMIN", teamName))
                                 .forEach(allQualifiedProjects::add);
 
-                        log.info("Fetched and streamed projects for {}", orgName);
+                        System.out.println("Fetched and streamed projects for: " + orgName);
                     } catch (CustomRuntimeException e) {
-                        log.info(e.getMessage());
+                        System.out.println(e.getMessage());
                         appendToBuffer(buffer, e.getMessage());
                     } catch (Exception e) {
-                        log.error("Failed to fetch data for org {}: {}", orgInfo, e.getMessage(), e);
+                        System.out.println("Failed to fetch data for org " + orgInfo + ": " + e.getMessage());
                         appendToBuffer(buffer, e.getMessage());
                     }
                 }, executor))
@@ -124,7 +122,7 @@ public class DiscoveryService {
         executor.shutdown();
 
         if (allQualifiedProjects.isEmpty()) {
-            log.warn("No repo commits found after parallel fetch.");
+            System.out.println("No repo commits found after parallel fetch.");
             throw new CustomRuntimeException("00", "Success", new ArrayList<>(), OK);
         }
 
@@ -132,7 +130,7 @@ public class DiscoveryService {
         qualifiedProjects.setMatch(new ArrayList<>(allQualifiedProjects));
         qualifiedProjects.setCount(allQualifiedProjects.size());
 
-        log.info("Matched services count: {}", qualifiedProjects.getMatch().size());
+        System.out.println("Matched services count: " + qualifiedProjects.getMatch().size());
         return new ResponseEntity<>(new ApiResponseContract(qualifiedProjects, buffer.toString()), OK);
     }
 
@@ -148,7 +146,7 @@ public class DiscoveryService {
             orgCredentials.put("orgPat", orgData[1]);
             orgCredentials.put("teamName", orgData[2]);
         } catch (Exception e) {
-            log.info("error parsing organization credentials");
+            System.out.println("error parsing organization credentials");
             throw new CustomRuntimeException(INVALID_ORG_CONFIG);
         }
         return orgCredentials;
@@ -158,7 +156,7 @@ public class DiscoveryService {
     public ResponseEntity<ApiResponseContract> findRecordByName(String serviceName) {
         StringBuffer buffer = new StringBuffer();
         Set<String> azureOrganizations = Set.of(props.getAzureOrganizations());
-        log.info("{} organizations found: {}", azureOrganizations.size(), azureOrganizations);
+        System.out.println(azureOrganizations.size() + " organizations found: " + azureOrganizations);
 
         ExecutorService executor = Executors.newFixedThreadPool(Math.min(azureOrganizations.size(), 10));
         ConcurrentLinkedQueue<QualifiedProjects.Match> allMatchedProjects = new ConcurrentLinkedQueue<>();
@@ -177,7 +175,7 @@ public class DiscoveryService {
                         try {
                             RepoSearchResponse repoSearchResponse = webClient.makeHttpCall(encodedUrl, encodedPat, orgName, RepoSearchResponse.class);
                             if (repoSearchResponse == null || repoSearchResponse.getValue() == null) {
-                                log.warn("No repositories for org: {}", orgName);
+                                System.out.println("No repositories for org: " + orgName);
                                 return;
                             }
 
@@ -189,17 +187,17 @@ public class DiscoveryService {
                                     .map(item -> getQualifiedProject(item, "DEV", teamName)) // process and transform one-by-one
                                     .forEach(allMatchedProjects::add);
 
-                            log.info("Projects added for org: {}", orgName);
+                            System.out.println("Projects added for org: " + orgName);
                         } catch (CustomRuntimeException e) {
                             appendToBuffer(buffer, e.getMessage());
                         } catch (Exception e) {
-                            log.error("Failed to fetch commit for org {}: {}", orgName, e.getMessage());
+                            System.out.println("Failed to fetch commit for org " + orgName + ": " + e.getMessage());
                         }
                     } catch (CustomRuntimeException e) {
-                        log.info(e.getMessage());
+                        System.out.println(e.getMessage());
                         appendToBuffer(buffer, e.getMessage());
                     } catch (Exception e) {
-                        log.error("Error occurred during org processing", e);
+                        System.out.println("Error occurred during org processing; " + e);
                         appendToBuffer(buffer, e.getMessage());
                     }
                 }, executor)).toList();
@@ -207,7 +205,7 @@ public class DiscoveryService {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executor.shutdown();
 
-        log.info("Returning {} matched service(s)\n", allMatchedProjects.size());
+        System.out.println("Returning " + allMatchedProjects.size() + " matched service(s)\n");
 
         QualifiedProjects qualifiedProjects = new QualifiedProjects();
         qualifiedProjects.setMatch(new ArrayList<>(allMatchedProjects));
@@ -240,7 +238,7 @@ public class DiscoveryService {
 
             return Stream.of(item);
         } catch (Exception e) {
-            log.error("Error fetching commits", e);
+            System.out.println("Error fetching commits " + e);
             return Stream.empty();
         }
     }

@@ -1,11 +1,10 @@
 package com.ajimati.MicroServiceDiscoveryService.client;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ajimati.MicroServiceDiscoveryService.config.PropsReader;
 import com.ajimati.MicroServiceDiscoveryService.exception.CustomRuntimeException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +18,6 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WebClientClass {
@@ -40,10 +38,10 @@ public class WebClientClass {
         try {
             response = client.send(request, BodyHandlers.ofString());
         } catch (IOException e) {
-            log.info("");
+            System.out.println("");
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
-            log.info("interrupted exception occurred: {}", e.getMessage());
+            System.out.println("interrupted exception occurred: " + e.getMessage());
             throw new RuntimeException(e);
         }
         if (response.statusCode() == 401 || response.statusCode() == 403)
@@ -55,8 +53,8 @@ public class WebClientClass {
         try {
             apiResponse = objectMapper.readValue(response.body(), rClass);
         } catch (JsonProcessingException e) {
-            log.info("error processing JSON body for {}", org);
-            log.info("API response body: {}", response.body());
+            System.out.println("error processing JSON body for: " + org);
+            System.out.println("API response body: " + response.body());
         }
         return apiResponse;
     }

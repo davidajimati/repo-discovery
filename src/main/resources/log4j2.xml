@@ -1,29 +1,29 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN" monitorInterval="30">
-    <Properties>
-        <Property name="LOG_PATTERN">%d{DEFAULT} | %-32.32c{1.} | %m%n</Property>
-        <Property name="LOG_PATH">./logs</Property>
-        <Property name="APP_NAME">microservice-project-discovery-service</Property>
-    </Properties>
-    <Appenders>
-        <Console name="Console" target="SYSTEM_OUT" follow="true">
-            <PatternLayout pattern="${LOG_PATTERN}"/>
-        </Console>
-        <RollingFile name="appInfoLog"
-                     fileName="${LOG_PATH}/${APP_NAME}-info.log"
-                     filePattern="${LOG_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd_HH}.%i.log.gz">
-            <PatternLayout pattern="${LOG_PATTERN}"/>
-            <Policies>
-                <SizeBasedTriggeringPolicy size="10MB"/>
+<!--<?xml version="1.0" encoding="UTF-8"?>-->
+<!--<Configuration status="WARN" monitorInterval="30">-->
+<!--    <Properties>-->
+<!--        <Property name="LOG_PATTERN">%d{DEFAULT} | %-32.32c{1.} | %m%n</Property>-->
+<!--        <Property name="LOG_PATH">./logs</Property>-->
+<!--        <Property name="APP_NAME">microservice-project-discovery-service</Property>-->
+<!--    </Properties>-->
+<!--    <Appenders>-->
+<!--        <Console name="Console" target="SYSTEM_OUT" follow="true">-->
+<!--            <PatternLayout pattern="${LOG_PATTERN}"/>-->
+<!--        </Console>-->
+<!--        <RollingFile name="appInfoLog"-->
+<!--                     fileName="${LOG_PATH}/${APP_NAME}-info.log"-->
+<!--                     filePattern="${LOG_PATH}/${APP_NAME}-info-%d{yyyy-MM-dd_HH}.%i.log.gz">-->
+<!--            <PatternLayout pattern="${LOG_PATTERN}"/>-->
+<!--            <Policies>-->
+<!--                <SizeBasedTriggeringPolicy size="10MB"/>-->
 
-            </Policies>
-            <DefaultRolloverStrategy max="20"/>
-        </RollingFile>
-    </Appenders>
-    <Loggers>
-        <Root level="debug" additivity="false">
-            <AppenderRef ref="appInfoLog" level="info"/>
-            <!--            <AppenderRef ref="appDebugLog" level="debug"/>-->
-        </Root>
-    </Loggers>
-</Configuration>
+<!--            </Policies>-->
+<!--            <DefaultRolloverStrategy max="20"/>-->
+<!--        </RollingFile>-->
+<!--    </Appenders>-->
+<!--    <Loggers>-->
+<!--        <Root level="debug" additivity="false">-->
+<!--            <AppenderRef ref="appInfoLog" level="info"/>-->
+<!--            &lt;!&ndash;            <AppenderRef ref="appDebugLog" level="debug"/>&ndash;&gt;-->
+<!--        </Root>-->
+<!--    </Loggers>-->
+<!--</Configuration>-->
